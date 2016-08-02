@@ -25,13 +25,20 @@
 #include <e131.h>
 #include <arpa/inet.h>
 
-void output(const uint8_t *data, const size_t size) {
+void write_console(const uint8_t *data, const size_t size) {
   if (size % 3 != 0) return;
+  uint8_t r, g, b, output;
   for (size_t pos = 0; pos < size; pos+=3) {
-    uint8_t r = data[pos] * 5 / 0xFF;
-    uint8_t g = data[pos + 1] * 5 / 0xFF;
-    uint8_t b = data[pos + 2] * 5 / 0xFF;
-    fprintf(stderr, "\x1b[48;5;%dm ", 16 + (r * 36) + (g * 6) + b);
+    r = data[pos]; g = data[pos + 1]; b = data[pos + 2];
+    if (r == g && g == b && r == b) { // use the grayscale palette
+      output = r * 25 / 0xFF;
+      if (output > 0 && output < 25) output += 231;
+      if (output == 0) output = 16;
+      if (output == 25) output = 231;
+    } else { // use the 6x6x6 color cube
+      output = 16 + ((r * 5 / 0xFF) * 36) + ((g * 5 / 0xFF) * 6) + (b * 5 / 0xFF);
+    }
+    fprintf(stderr, "\x1b[48;5;%dm ", output);
   }
   fprintf(stderr, "\x1b[0m\n");
 }
@@ -54,13 +61,16 @@ int main() {
   for (;;) {
     if (e131_recv(e131_fd, &e131_packet) < 0)
       err(EXIT_FAILURE, "e131_recv");
-    if (e131_pkt_validate(&e131_packet) != E131_ERR_NONE)
+    if (e131_pkt_validate(&e131_packet) != E131_ERR_NONE) {
+      fprintf(stderr, "warning: invalid E1.31 packet received\n");
       continue;
+    }
     if (e131_packet.frame.sequence_number != curr_sequence++) {
+      fprintf(stderr, "warning: out of order E1.31 packet received\n");
       curr_sequence = e131_packet.frame.sequence_number + 1;
       continue;
     }
-    output(e131_packet.dmp.property_values + 1, \
+    write_console(e131_packet.dmp.property_values + 1, \
       ntohs(e131_packet.dmp.property_value_count) - 1);
   }
 
