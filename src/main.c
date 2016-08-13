@@ -47,7 +47,7 @@ int main() {
   int e131_fd;
   e131_packet_t e131_packet;
   e131_error_t e131_error;
-  uint8_t curr_seq = 0x00;
+  uint8_t last_seq = 0x00;
 
   // create a socket for E1.31
   if ((e131_fd = e131_socket()) < 0)
@@ -66,13 +66,14 @@ int main() {
       fprintf(stderr, "e131_pkt_validate: %s\n", e131_strerror(e131_error));
       continue;
     }
-    if (e131_packet.frame.seq_number != curr_seq++) {
+    if (e131_pkt_discard(&e131_packet, last_seq)) {
       fprintf(stderr, "warning: out of order E1.31 packet received\n");
-      curr_seq = e131_packet.frame.seq_number + 1;
+      last_seq = e131_packet.frame.seq_number;
       continue;
     }
-    write_console(e131_packet.dmp.prop_values + 1, \
-      ntohs(e131_packet.dmp.prop_value_cnt) - 1);
+    write_console(e131_packet.dmp.prop_val + 1, \
+      ntohs(e131_packet.dmp.prop_val_cnt) - 1);
+    last_seq = e131_packet.frame.seq_number;
   }
 
   // finished
