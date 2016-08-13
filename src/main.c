@@ -63,7 +63,7 @@ int main() {
     if (e131_recv(e131_fd, &e131_packet) < 0)
       err(EXIT_FAILURE, "e131_recv");
     if ((e131_error = e131_pkt_validate(&e131_packet)) != E131_ERR_NONE) {
-      fprintf(stderr, "%s\n", e131_strerror(e131_error));
+      fprintf(stderr, "e131_pkt_validate: %s\n", e131_strerror(e131_error));
       continue;
     }
     if (e131_packet.frame.seq_number != curr_seq++) {
