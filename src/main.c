@@ -18,47 +18,54 @@
  */
 
 #include <stdio.h>
-#include <stdint.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <err.h>
 #include <e131.h>
 #include <arpa/inet.h>
+#include "prototypes.h"
 
-void write_console(const uint8_t *data, const size_t size) {
-  if (size % 3 != 0) return;
-  uint8_t r, g, b, output;
-  for (size_t pos = 0; pos < size; pos+=3) {
-    r = data[pos]; g = data[pos + 1]; b = data[pos + 2];
-    if (r == g && g == b && r == b) { // use the grayscale palette
-      output = r * 25 / 0xFF;
-      if (output > 0 && output < 25) output += 231;
-      if (output == 0) output = 16;
-      if (output == 25) output = 231;
-    } else { // use the 6x6x6 color cube
-      output = 16 + ((r * 5 / 0xFF) * 36) + ((g * 5 / 0xFF) * 6) + (b * 5 / 0xFF);
-    }
-    fprintf(stderr, "\x1b[48;5;%dm ", output);
-  }
-  fprintf(stderr, "\x1b[0m\n");
-}
-
-int main() {
+int main(int argc, char **argv) {
+  int opt;
   int e131_fd;
+  uint16_t universe = 0x0001;
   e131_packet_t e131_packet;
   e131_error_t e131_error;
   uint8_t last_seq_number = 0x00;
+
+  // program options
+  while ((opt = getopt(argc, argv, "hu:")) != -1) {
+    switch (opt) {
+      case 'h':
+        show_usage(argv[0]);
+        exit(EXIT_SUCCESS);
+      case 'u':
+        sscanf(optarg, "%" SCNu16, &universe);
+        if (universe < 0x0001 || universe > 0xf9ff) {
+          fprintf(stderr, "error: universe must be between 1-63999\n");
+          exit(EXIT_FAILURE);
+        }
+        break;
+      default:
+        fprintf(stderr, "Try '%s -h' for more information.\n", argv[0]);
+        exit(EXIT_FAILURE);
+    }
+  }
 
   // create a socket for E1.31
   if ((e131_fd = e131_socket()) < 0)
     err(EXIT_FAILURE, "e131_socket");
 
-  // bind the socket to the default E1.31 port
+  // bind the socket to the default E1.31 port and join multicast group
   if (e131_bind(e131_fd, E131_DEFAULT_PORT) < 0)
     err(EXIT_FAILURE, "e131_bind");
+  if (e131_multicast_join(e131_fd, universe) < 0)
+    err(EXIT_FAILURE, "e131_multicast_join");
+  fprintf(stderr, "E1.31 multicast server listening on port %d\n", E131_DEFAULT_PORT);
 
   // loop to receive E1.31 packets
-  fprintf(stderr, "waiting for E1.31 packets ...\n");
+  fprintf(stderr, "waiting for E1.31 (sACN) data, use CTRL+C to stop\n");
   for (;;) {
     if (e131_recv(e131_fd, &e131_packet) < 0)
       err(EXIT_FAILURE, "e131_recv");
@@ -71,6 +78,8 @@ int main() {
       last_seq_number = e131_packet.frame.seq_number;
       continue;
     }
+
+    // write RGB data to the console
     write_console(e131_packet.dmp.prop_val + 1, \
       ntohs(e131_packet.dmp.prop_val_cnt) - 1);
     last_seq_number = e131_packet.frame.seq_number;
