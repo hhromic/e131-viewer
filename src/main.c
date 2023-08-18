@@ -73,8 +73,13 @@ int main(int argc, char **argv) {
       fprintf(stderr, "e131_pkt_validate: %s\n", e131_strerror(e131_error));
       continue;
     }
+    if (last_seq_number == e131_packet.frame.seq_number) {
+      // got a duplicate packet, ignore it
+      continue;
+    }
     if (e131_pkt_discard(&e131_packet, last_seq_number)) {
-      fprintf(stderr, "warning: out of order E1.31 packet received\n");
+      fprintf(stderr, "warning: out of order E1.31 packet received. Seq:%d Prev:%d\n",\
+        e131_packet.frame.seq_number, last_seq_number);
       last_seq_number = e131_packet.frame.seq_number;
       continue;
     }

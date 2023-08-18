@@ -23,6 +23,6 @@
 #include <stdint.h>
 
 extern void show_usage(char *prog_name);
-extern void write_console(const uint8_t *data, const size_t size);
+extern void write_console(const uint8_t *data, size_t size);
 
 #endif
