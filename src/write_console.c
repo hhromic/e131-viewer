@@ -21,8 +21,9 @@
 #include <stdint.h>
 
 // write RGB color data to the console using xterm256 ANSI colors
-void write_console(const uint8_t *data, const size_t size) {
-  if (size % 3 != 0) return;
+void write_console(const uint8_t *data, size_t size) {
+  // If size isn't a multiple of 3, just truncate the extra
+  size = (size / 3) * 3;
   uint8_t r, g, b, output;
   for (size_t pos = 0; pos < size; pos+=3) {
     r = data[pos]; g = data[pos + 1]; b = data[pos + 2];
